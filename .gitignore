@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# DATA: never commit. WRDS data (CRSP, Compustat, RavenPack, Datastream,
+# OptionMetrics, TAQ, ExecuComp) is licensed for academic use only and may not
+# be redistributed (a public GitHub repo counts as redistribution).
+# Everything in data/ is rebuilt by the pull_*.py and build_*.py scripts.
+# ---------------------------------------------------------------------------
+data/
+*.csv
+*.csv.gz
+*.parquet
+*.feather
+*.pkl
+*.pickle
+*.h5
+*.npy
+*.npz
+
+# ---------------------------------------------------------------------------
+# Python / Jupyter
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+# Notebook OUTPUTS can contain printed WRDS data: strip outputs before pushing
+# (e.g. `nbstripout`), or keep the repo private.
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+.env
+.pgpass
+*.key
+*credentials*
+
+# ---------------------------------------------------------------------------
+# OS / editors
+# ---------------------------------------------------------------------------
+.DS_Store
+.vscode/
+.idea/
