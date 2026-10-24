@@ -129,9 +129,14 @@ def secids():
 
 
 def options_iv():
+    """One file per year; years that are not done yet are pulled one QUARTER at a time (the later yearly tables
+    are much bigger and a whole-year query can time out)."""
     s = secids()
     for y in YEARS:
-        save("options_iv", str(y), f"""
+        if (OUT / "options_iv" / f"{y}.csv.gz").exists():
+            continue
+        for qn, (a, b) in enumerate([("01-01", "03-31"), ("04-01", "06-30"), ("07-01", "09-30"), ("10-01", "12-31")], 1):
+            save("options_iv", f"{y}q{qn}", f"""
             SELECT secid, date,
                    MAX(CASE WHEN cp_flag = 'C' AND delta = 50  THEN impl_volatility END) AS iv_c50,
                    MAX(CASE WHEN cp_flag = 'P' AND delta = -50 THEN impl_volatility END) AS iv_p50,
@@ -139,6 +144,7 @@ def options_iv():
                    MAX(CASE WHEN cp_flag = 'P' AND delta = -25 THEN impl_volatility END) AS iv_p25
             FROM optionm.vsurfd{y}
             WHERE days = 30 AND delta IN (50, -50, 25, -25) AND secid IN ({ints(s)})
+              AND date BETWEEN '{y}-{a}' AND '{y}-{b}'
             GROUP BY secid, date""")
 
 
@@ -275,6 +281,7 @@ def rbics():
     m = m if m is not None else load("rbics", "company_cusip")
     idcol = next((x for x in m.columns if x in ("company_id", "id")), None)
     ids = sorted(m[idcol].dropna().astype(int).unique()) if idcol else []
+    print(f"   rbics: {len(ids)} FactSet company ids")
     if ids:
         save("rbics", "focus_l6", f"SELECT * FROM factset_revere_ind_class.company_rbics2_focus_l6 WHERE company_id IN ({ints(ids)})")
         save("rbics", "structure_l6", "SELECT * FROM factset_revere_ind_class.rbics2_structure_l6")
@@ -297,6 +304,8 @@ def sec_text():
 
 
 def cds():
+    """Markit CDS is in LONG format: one row per entity, date, and tenor, with the spread in `parspread`.
+    Keep the 5-year tenor, US dollars, senior unsecured debt."""
     red = load("links", "markit_red")
     if red is None or "redcode" not in red.columns:
         print("   cds: no RED codes (run the links block first); skipped")
@@ -309,12 +318,15 @@ def cds():
         if t not in tabs:
             continue
         c = cols(lib, t)
-        keep = [x for x in ["date", "ticker", "redcode", "tier", "ccy", "docclause", "spread5y", "compositedepth5y"] if x in c]
-        if "spread5y" not in keep or "redcode" not in keep:
-            print(f"   {lib}.{t}: spread5y / redcode not found (columns start: {c[:30]}); skipped")
+        need = {"date", "redcode", "tenor", "parspread"}
+        if not need <= set(c):
+            print(f"   {lib}.{t}: missing {sorted(need - set(c))}; skipped")
             continue
-        where = (" AND ccy = 'USD'" if "ccy" in keep else "") + (" AND tier = 'SNRFOR'" if "tier" in keep else "")
-        save("cds", str(y), f"SELECT {', '.join(keep)} FROM {lib}.{t} WHERE redcode IN ({q(codes)}){where}")
+        keep = [x for x in ["date", "ticker", "redcode", "tier", "currency", "docclause", "parspread", "compositedepth5y"] if x in c]
+        where = (" AND currency = 'USD'" if "currency" in c else "") + (" AND tier = 'SNRFOR'" if "tier" in c else "")
+        save("cds", str(y), f"""
+            SELECT {', '.join(keep)} FROM {lib}.{t}
+            WHERE redcode IN ({q(codes)}) AND tenor = '5Y'{where}""")
 
 
 BLOCKS = {f.__name__: f for f in [links, crsp_quotes, options_iv, options_volume, ibes_consensus, ibes_recs,
